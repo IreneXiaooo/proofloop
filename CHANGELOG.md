@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0 — 2026-10-17
+
+Added opt-in parallel worker worktrees, bounded concurrency, atomic shared call reservations, sibling cancellation and interrupt cleanup, plan-order Git three-way integration, per-worker patches/merge evidence, optional bounded text-conflict resolvers, and an offline parallel demo. Unsupported binary/structural conflicts fail closed; final regression checks and review still gate publication. Added focused primary-documentation design review and setup flags. Existing sequential configs remain valid.
+
 ## 0.2.0 — 2026-10-17
 
 Added Codex CLI worker/reviewer/planner adapters; explicit models and reasoning effort; schema-validated bounded sequential delegation with mixed Codex/command worker profiles; stage worker overrides; cumulative role-call limits; per-call JSONL usage records and configurable price estimates; `init-codex`, `doctor`, and `usage` commands. Preserved generic command tasks. Integration tests simulate the Codex CLI; live-model validation is pending.

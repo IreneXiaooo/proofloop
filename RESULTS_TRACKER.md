@@ -1,6 +1,6 @@
 # Results tracker
 
-Revision: 3. Date: 2026-10-17. Status: CODEX_ADAPTER_CONTRACT_TESTED.
+Revision: 4. Date: 2026-10-17. Status: PARALLEL_INTEGRATION_TESTED.
 
 ## Goal and constraints
 
@@ -37,3 +37,13 @@ Observed: 57 local tests pass; old task fingerprints preserved; offline data/rep
 Next decisive validation: run the generated mean task on an authenticated, version-recorded Codex installation using the requested model IDs; inspect role logs, usage completeness, fixed checks, and the resulting diff. Then compare direct versus delegated runs at equal call/time budgets on a frozen task suite.
 
 Mixed-provider coverage: a Codex planner assigns a Codex worker and a generic command worker to the same candidate. Their combined output passes the frozen check; the generic worker is identified by its configured profile and its usage remains unknown. This test simulates the provider boundary and does not call Qwen.
+
+## Parallel upgrade and design review
+
+Authorized: review other harness designs, add parallel execution and conflict resolution, and publish the current public project update. Primary documentation reviewed: Codex subagents, Claude Code worktrees, Deep Agents subagents, and Git merge-tree. This was a focused design review, not a comparative benchmark or full external-code audit. See docs/harness-review.md.
+
+Chosen implementation: opt-in bounded parallel workers, detached checkouts at a common accepted base, serialized call/state reservations, process cancellation with join-before-cleanup, independent worker patches, plan-order Git three-way integration, and optional scope-limited UTF-8 text resolvers. Unsupported conflicts reject explicitly. The existing fixed checks, regression rules, review gate, and compare-and-swap publication remain final. Sequential configs receive no new defaults, preserving their fingerprints.
+
+Observed: 86 local tests pass; actual subprocess rendezvous proves concurrency; clean and conflicted integration, resolver scope, failure/cancellation, budgets, atomic call IDs, and final regression behavior are exercised. A no-key parallel demo runs. Evidence: proofloop/parallel.py, tests/test_parallel.py, tests/parallel_worker.py, docs/parallel.md, docs/validation.md. Live-provider quality/cost/latency benefits remain hypotheses.
+
+Next decisive comparison: fixed independent and overlapping task sets, sequential versus parallel at equal model/call budgets. Measure completion, regression, wall time, conflict rate, resolver calls, and usage coverage. Reject larger worker counts if coordination cost outweighs useful completion or latency.

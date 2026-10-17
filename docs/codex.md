@@ -36,7 +36,7 @@ proofloop init-codex --dir my-team-demo \
   --reviewer-model gpt-6-astra
 ```
 
-The planner runs read-only and returns a list of tasks selecting named, configured worker profiles. Workers can use either the built-in Codex adapter or a generic command wrapper for another provider, such as Qwen. The harness validates the entire plan before launching workers. Unknown workers, empty plans, and plans above `max_tasks` are rejected. The controller then invokes workers sequentially in the same candidate worktree. Workers see the original goal and constraints plus their assigned subtask. They do not receive another model's hidden reasoning.
+The planner runs read-only and returns a list of tasks selecting named, configured worker profiles. Workers can use either the built-in Codex adapter or a generic command wrapper for another provider, such as Qwen. The harness validates the entire plan before launching workers. Unknown workers, empty plans, and plans above `max_tasks` are rejected. By default the controller invokes workers sequentially in the same candidate worktree. Version 0.3 can instead run independent tasks in parallel isolated worktrees; see [parallel execution](parallel.md). Workers see the original goal and constraints plus their assigned subtask. They do not receive another model's hidden reasoning.
 
 All workers must finish successfully. Checks run on their combined candidate; review follows only if acceptance criteria improve without regressions. Any failure discards the whole candidate. Per-worker path guards stop boundary violations before the next worker. Planner and reviewer file changes are rejected.
 
@@ -57,7 +57,7 @@ See [direct config](../examples/codex/task.json) and [delegated config](../examp
 
 `model` is required. `reasoning_effort` is optional: `low`, `medium`, `high`, or `xhigh`; the selected model/CLI must support it. `ultra` is excluded to avoid requesting automatic delegation outside the controller's explicit plan. `command` optionally supplies an executable prefix such as `["/opt/bin/codex"]`; normally omit it to use `codex` on PATH. This is not a raw override of the managed arguments.
 
-Worker calls request `workspace-write`. Planner and reviewer calls request `read-only`. The adapter does not set `--yolo`, disable approval review, or switch models after errors/refusals. Unsupported flags, unavailable models, failed authentication, and command failures reject the attempt and are logged. Your existing Codex configuration and repository instructions still apply, subject to the explicit command-line overrides.
+Worker and conflict-resolver calls request `workspace-write`. Planner and reviewer calls request `read-only`. The adapter does not set `--yolo`, disable approval review, or switch models after errors/refusals. Unsupported flags, unavailable models, failed authentication, and command failures reject the attempt and are logged. Your existing Codex configuration and repository instructions still apply, subject to the explicit command-line overrides.
 
 ## Structured results and diagnostics
 
@@ -77,7 +77,7 @@ To estimate cost, optionally add a full `pricing` object to each Codex role. Sup
 
 These numbers are an arithmetic example, **not model prices**. Estimated cost is `(uncached input × input rate + cached input × cached rate + output × output rate) / 1,000,000`. Subscription credits and actual billed charges may differ. A complete total estimate is null when any call lacks pricing or complete usage. Known partial estimates are shown separately. There is no automatic claim that delegation saves tokens or money.
 
-`budget.max_calls` caps worker, planner, and reviewer invocations together across resumes. The default is `max_attempts × (max_tasks + 2)`, using one worker if delegation is disabled. Attempt and active-time limits still apply. These are execution bounds; no hard token or dollar ceiling is implemented.
+`budget.max_calls` caps worker, planner, and reviewer invocations together across resumes. The sequential default is `max_attempts × (max_tasks + 2)`, using one worker if delegation is disabled. Parallel configurations also reserve capacity for the maximum configured conflict-resolver passes. Attempt and active-time limits still apply. These are execution bounds; no hard token or dollar ceiling is implemented.
 
 ## Mixed providers: Codex + Qwen
 
@@ -94,4 +94,4 @@ A Codex planner can select a generic command worker alongside Codex workers. For
 
 This is the `workers` portion of a `delegation` object. Your Qwen wrapper must consume the task on stdin, run in the current worktree, edit only allowed files, and propagate a nonzero exit on failure. Configure it against your installed Qwen agent's actual interface. A Qwen API that only returns text needs an editing/tool adapter; merely returning proposed code does not update the worktree. No native Qwen installation or live mixed-model run is claimed. Generic worker usage remains unknown; the Codex JSONL parser is not applied to another provider's output.
 
-Workers execute sequentially on one candidate; the configured plan is bounded by `max_tasks` and the total call budget. Parallel worktrees, automatic conflict resolution, and inter-agent messaging are not provided. A review can approve or reject the combined candidate, but the fixed acceptance checks still decide whether it made progress.
+Sequential mode executes workers on one candidate. Parallel mode uses isolated worktrees and a bounded merge/resolution step. The plan is bounded by `max_tasks` and the total call budget. Direct inter-agent messaging is not provided. A review can approve or reject the combined candidate, but the fixed acceptance checks still decide whether it made progress.

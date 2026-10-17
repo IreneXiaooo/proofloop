@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "id": "parallel-provider-project",
+  "goal": "Implement the behavior specified by checks/acceptance.py. Preserve frozen inputs and checks.",
+  "agent": {
+    "adapter": "codex",
+    "model": "gpt-6.1-sol",
+    "timeout_s": 600
+  },
+  "delegation": {
+    "planner": {
+      "adapter": "codex",
+      "model": "gpt-6-astra",
+      "reasoning_effort": "high",
+      "timeout_s": 300
+    },
+    "workers": {
+      "sol": {
+        "adapter": "codex",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium",
+        "timeout_s": 600
+      },
+      "luna": {
+        "adapter": "codex",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "medium",
+        "timeout_s": 300
+      },
+      "qwen": {
+        "command": [
+          "{python}",
+          "qwen_wrapper.py"
+        ],
+        "timeout_s": 600
+      }
+    },
+    "max_tasks": 2,
+    "execution": "parallel",
+    "max_parallel": 2,
+    "conflict_resolution": {
+      "strategy": "resolve",
+      "resolver": {
+        "adapter": "codex",
+        "model": "gpt-6-astra",
+        "reasoning_effort": "medium",
+        "timeout_s": 180
+      },
+      "max_attempts": 1
+    }
+  },
+  "reviewer": {
+    "adapter": "codex",
+    "model": "gpt-6-astra",
+    "reasoning_effort": "high",
+    "timeout_s": 300
+  },
+  "writable": [
+    "src/**"
+  ],
+  "protected": [
+    "checks/**",
+    "tests/**",
+    "task.json",
+    "qwen_wrapper.py"
+  ],
+  "stages": [
+    {
+      "id": "behavior",
+      "check": [
+        "{python}",
+        "checks/acceptance.py"
+      ]
+    }
+  ],
+  "budget": {
+    "max_attempts": 3,
+    "max_calls": 15,
+    "max_seconds": 1800,
+    "stall_after": 3
+  }
+}

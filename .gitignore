@@ -5,3 +5,5 @@ build/
 dist/
 .venv/
 .proofloop-demo/
+
+.proofloop-parallel-demo/

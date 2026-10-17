@@ -35,3 +35,7 @@ Agent specifications may use `adapter: "codex"`, required `model`, optional `com
 Optional top-level `delegation` contains a Codex `planner`, a map of named Codex or generic command `workers`, and integer `max_tasks` (1–8). A stage-level `agent` bypasses delegation and overrides the global direct worker. `budget.max_calls` caps all harness-issued role invocations across resumes. See [the complete contract](codex.md). Existing version-1 configs and their normalized fingerprints are preserved when these fields are absent.
 
 Usage is now collected for Codex JSONL calls. Dollar figures are estimates only when configured pricing and complete usage are present; no token/dollar spending cap is implied.
+
+## Added in 0.3
+
+`delegation.execution` may be `sequential` (default when absent) or `parallel`. Optional `max_parallel` is 1–8 and requires parallel mode (effective concurrency never exceeds task count). Optional `conflict_resolution` is either `{"strategy":"reject"}` or `{"strategy":"resolve","resolver":<agent spec>,"max_attempts":1}`; it requires parallel mode, and max attempts is limited to 1–3 per conflicting integration step. Worker/resolver profiles can use Codex or generic commands. Existing configurations receive no inserted defaults, preserving their fingerprints. See [parallel contracts](parallel.md) for support limits, cancellation, and evidence.

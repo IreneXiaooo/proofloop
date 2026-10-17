@@ -30,3 +30,7 @@ Git's [worktree interface](https://git-scm.com/docs/git-worktree) supplies linke
 ## Codex integration (0.2)
 
 `codex.py` builds managed CLI arguments, separates structured final results from logs, parses usage events, validates bounded plans/reviews, prepares example projects, and checks executable versions. `core.py` owns call reservations, lifecycle budgets, planner/worker execution, and publication; model output never changes acceptance checks. The controller requests native agent tools disabled, then executes its own validated worker list sequentially. The trust model is unchanged. No real-model or savings claim follows from CLI simulation tests.
+
+## Parallel integration (0.3)
+
+`parallel.py` runs isolated worker processes with bounded concurrency, collects checked candidate commits/patches, and integrates them in plan order via Git merge-tree. Optional resolver calls can edit only supported conflicting text files. State/call reservations use an RLock; subprocess execution occurs outside it. A shared cancellation event lets failed/interrupted batches terminate running process groups and cancel queued futures before worktree cleanup. The normal verifier/reviewer/publication pipeline remains the final gate. See the [focused harness design review](harness-review.md).

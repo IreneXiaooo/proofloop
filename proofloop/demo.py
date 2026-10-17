@@ -50,3 +50,48 @@ def create_demo(destination: Path) -> Path:
     git(destination, '-c', 'user.name=ProofLoop Demo', '-c', 'user.email=demo@localhost',
         'commit', '-m', 'demo: a broken mean and frozen behavioral checks')
     return path
+
+
+PARALLEL_DRIVER = '''from pathlib import Path
+import json
+import sys
+import time
+role = sys.argv[1]
+prompt = sys.stdin.read()
+if role == "planner":
+    final = Path(sys.argv[sys.argv.index("--output-last-message") + 1])
+    final.write_text(json.dumps({"tasks":[{"worker":"a","goal":"Propose contribution a."},{"worker":"b","goal":"Propose contribution b."}]}))
+    print(json.dumps({"type":"turn.completed"}))
+elif role == "worker":
+    time.sleep(.3)
+    Path("output/shared.txt").write_text(sys.argv[2] + "\\n")
+else:
+    data = json.loads(prompt)
+    assert data["conflicted_paths"] == ["output/shared.txt"]
+    Path("output/shared.txt").write_text("a+b\\n")
+    print("Resolved synthetic contributions")
+'''
+
+
+def create_parallel_demo(destination: Path):
+    """Synthetic parallel/conflict demonstration. No installed CLI or model needed."""
+    path = create_demo(destination)
+    (destination / 'output').mkdir()
+    (destination / 'output/shared.txt').write_text('base\n')
+    (destination / 'parallel_driver.py').write_text(PARALLEL_DRIVER, encoding='utf-8')
+    (destination / 'checks/parallel.py').write_text("from pathlib import Path\nassert Path('output/shared.txt').read_text() == 'a+b\\n'\n")
+    c = json.loads(path.read_text())
+    c.update(id='parallel-demo', goal='Combine the synthetic contributions a and b in output/shared.txt as a+b.',
+             writable=['output/**'], protected=['checks/**','task.json','parallel_driver.py'],
+             stages=[{'id':'combined','check':['{python}','checks/parallel.py']}],
+             budget={'max_attempts':1,'max_calls':4,'max_seconds':60,'stall_after':1})
+    c['delegation'] = {'planner':{'adapter':'codex','model':'offline-fixture',
+        'command':['{python}','parallel_driver.py','planner'],'timeout_s':10},
+        'workers':{k:{'command':['{python}','parallel_driver.py','worker',k],'timeout_s':10} for k in ['a','b']},
+        'max_tasks':2,'execution':'parallel','max_parallel':2,
+        'conflict_resolution':{'strategy':'resolve','resolver':{'command':['{python}','parallel_driver.py','resolver'],
+                                                              'timeout_s':10},'max_attempts':1}}
+    path.write_text(json.dumps(c,indent=2)+'\n',encoding='utf-8')
+    git(destination,'add','.')
+    git(destination,'-c','user.name=ProofLoop Demo','-c','user.email=demo@localhost','commit','-m','Offline parallel and conflict fixtures')
+    return path

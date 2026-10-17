@@ -32,6 +32,8 @@ if '--output-schema' in args:
         tasks = [{'worker': names[0], 'goal': 'Implement correct mean.'}]
         if 'two' in model:
             tasks.append({'worker': names[-1], 'goal': 'Preserve the correct mean.'})
+        if 'three' in model:
+            tasks = [{'worker': name, 'goal': 'Independent fixture component.'} for name in names]
         if 'over' in model:
             tasks *= 20
         if 'unknown' in model:

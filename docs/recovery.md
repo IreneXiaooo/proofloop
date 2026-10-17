@@ -54,3 +54,7 @@ Git worktrees share object storage and Git administration. Protect the host with
 ## Model-call ledger (0.2)
 
 `calls/000001.json` records reserved/completed/interrupted calls, roles, requested models, token usage, and optional cost estimates. `usage.json` is rebuilt on state saves; `proofloop usage task.json` computes it from the ledger. Codex role logs have adjacent `.final.txt` and, for structured roles, `.schema.json` files. An unfinished reservation remains an unknown-usage call. Legacy calls without records are explicitly counted as unattributed. `CALL_BUDGET` stops further role invocations when the cumulative cap is exhausted. A crash can consume time/usage not reported before termination; use provider limits for hard financial controls.
+
+## Parallel batches (0.3)
+
+Worker worktrees are named with the attempt and worker number. On ordinary cancellation the controller waits for all child executions before removing them. A forced crash may leave several worktrees; confirm no process is still using them before manual cleanup. `parallel.json`, `worker-N.patch`, and `merges/NN/` preserve the attempted integration and resolution evidence. Resume starts a new attempt from the accepted base, not from a partially merged candidate. See [parallel execution](parallel.md).

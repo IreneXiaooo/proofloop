@@ -56,9 +56,22 @@ proofloop --help
 
 No hosted service, database, provider SDK, or runtime dependency is required. Source repository: [IreneXiaooo/proofloop](https://github.com/IreneXiaooo/proofloop). This alpha is installed from source; no PyPI release is claimed.
 
+## Parallel workers, verified together
+
+**New in 0.3:** isolated parallel worktrees, deterministic three-way integration, and bounded text-conflict resolution. Mix Codex and command-based workers while keeping the same acceptance gates.
+
+```bash
+# No API key: two isolated workers, a deliberate conflict, and a checked resolution.
+python -m proofloop parallel-demo
+```
+
+For a real task, enable `--parallel` when preparing Codex roles and add `--resolver-model` to opt into model-assisted text resolution. Binary and unsupported structural conflicts stop for review. A failed worker cancels the batch; the original checkout stays intact.
+
+[Parallel setup and merge contract →](docs/parallel.md) · [Design review →](docs/harness-review.md)
+
 ## Codex: Astra + Sol
 
-**New in 0.2:** built-in Codex CLI adapters, separate models for worker/reviewer/planner, bounded sequential delegation, mixed-provider command workers, and token usage reports.
+**New in 0.2:** built-in Codex CLI adapters, separate models for worker/reviewer/planner, bounded delegation, mixed-provider command workers, and token usage reports.
 
 ```bash
 python -m pip install -e .
@@ -141,8 +154,8 @@ Run both additional offline recipes with `python examples/run_examples.py`. Subs
 
 ```mermaid
 flowchart TD
-    A["Pick an unfinished stage"] --> B["Agent edits a fresh worktree"]
-    B --> C["Check paths and rerun all stages"]
+    A["Pick an unfinished stage"] --> B["Workers edit isolated worktrees"]
+    B --> C["Merge candidates and rerun all stages"]
     C --> D{"New pass, no regression?"}
     D -->|No| E["Record rejection"]
     D -->|Yes| F{"Optional review approves?"}
@@ -164,11 +177,11 @@ ProofLoop targets trusted local projects on a single machine. Git worktrees isol
 
 File guards cover tracked files and nonignored new files. Ignored files, external datasets, and external side effects are not guarded or rolled back. Keep acceptance checks and their dependencies outside writable paths. Do not put secrets or private material in tracked files. Logs may contain provider output; inspect them before sharing.
 
-Runtime has no third-party dependencies; editable installation uses setuptools. POSIX is the initial target; Linux is tested here. A Linux/macOS CI workflow is included. Windows has process cleanup support but has not been validated. The Codex adapter and role/delegation flow have simulated CLI integration coverage. Live-model validation, hard dollar/token budgets, caching, and claims of lower cost or better generalization remain pending.
+Runtime has no third-party dependencies; editable installation uses setuptools. POSIX is the initial target; Linux is tested here. Linux/macOS CI covers the controller and offline demos. Windows has process cleanup support but has not been validated. The Codex adapter and role/delegation flow have simulated CLI integration coverage. Live-model validation, hard dollar/token budgets, caching, and claims of lower cost or better generalization remain pending.
 
 ## Read more
 
-- [Codex integration](docs/codex.md) · [Configuration](docs/configuration.md) · [Task design](docs/task-design.md) · [Adapters](docs/adapters.md)
+- [Parallel execution](docs/parallel.md) · [Codex integration](docs/codex.md) · [Configuration](docs/configuration.md) · [Task design](docs/task-design.md) · [Adapters](docs/adapters.md)
 - [Recovery and evidence](docs/recovery.md) · [Architecture and source provenance](docs/architecture.md)
 - [Validation record](docs/validation.md) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md)
 

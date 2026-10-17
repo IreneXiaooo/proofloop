@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from . import __version__
 from .core import Harness, HarnessError, invoke
-from .demo import create_demo
+from .demo import create_demo, create_parallel_demo
 
 
 def main(argv=None):
@@ -14,11 +14,16 @@ def main(argv=None):
     sub = p.add_subparsers(dest='cmd', required=True)
     demo = sub.add_parser('demo', help='run an offline reject-then-accept demonstration')
     demo.add_argument('--dir', type=Path, default=Path('.proofloop-demo'))
+    pdemo = sub.add_parser('parallel-demo', help='offline isolated workers and conflict-resolution demo')
+    pdemo.add_argument('--dir', type=Path, default=Path('.proofloop-parallel-demo'))
     init = sub.add_parser('init-codex', help='prepare a committed Codex example without making model calls')
     init.add_argument('--dir', type=Path, default=Path('proofloop-codex-demo'))
     init.add_argument('--worker-model', default='gpt-6.1-sol')
     init.add_argument('--reviewer-model', default='gpt-6-astra')
     init.add_argument('--planner-model')
+    init.add_argument('--parallel', action='store_true')
+    init.add_argument('--max-parallel', type=int, choices=range(1,9), default=2)
+    init.add_argument('--resolver-model')
     for name in ['run', 'verify', 'status', 'report', 'doctor', 'usage']:
         s = sub.add_parser(name)
         s.add_argument('config', type=Path)
@@ -27,17 +32,17 @@ def main(argv=None):
     try:
         if args.cmd == 'init-codex':
             from .codex import create_codex_demo
-            config = create_codex_demo(args.dir.resolve(), args.worker_model, args.reviewer_model, args.planner_model)
+            config = create_codex_demo(args.dir.resolve(), args.worker_model, args.reviewer_model, args.planner_model, parallel=args.parallel, max_parallel=args.max_parallel, resolver_model=args.resolver_model)
             print(f'Prepared {config}; no model was called.')
             print(f'Next: proofloop doctor {config} --repo {args.dir.resolve()}')
             return 0
-        if args.cmd == 'demo':
+        if args.cmd in ['demo', 'parallel-demo']:
             root = args.dir.resolve()
-            harness = Harness(root, create_demo(root))
+            harness = Harness(root, create_parallel_demo(root) if args.cmd == 'parallel-demo' else create_demo(root))
             status = harness.run()
-            print(f'\n{status} · {harness.state["accepted"]} accepted / {harness.state["attempts"]} attempts')
+            print(f'\n{status} · {harness.state["accepted"]} accepted / {harness.state["attempts"]} attempt(s)')
             print(f'Original checkout preserved: {root}')
-            print('Inspect: git -C ' + str(root) + ' diff main..proofloop/fix-mean')
+            print('Inspect: git -C ' + str(root) + ' diff main..proofloop/' + harness.config['id'])
             return 0 if status == 'COMPLETE' else 1
         harness = Harness(args.repo, args.config)
         if args.cmd == 'doctor':

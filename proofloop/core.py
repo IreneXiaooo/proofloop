@@ -12,6 +12,8 @@ import signal
 import subprocess
 import sys
 import time
+import threading
+from functools import partial
 from contextlib import contextmanager
 
 
@@ -107,8 +109,26 @@ def load_config(path: Path) -> dict:
         validate_agent(c.get(role), role)
     if 'delegation' in c:
         d = c['delegation']
-        if not isinstance(d, dict) or set(d) != {'planner', 'workers', 'max_tasks'}:
+        if not isinstance(d, dict) or not {'planner', 'workers', 'max_tasks'} <= set(d) or set(d) - {'planner', 'workers', 'max_tasks', 'execution', 'max_parallel', 'conflict_resolution'}:
             raise HarnessError('delegation needs planner, workers, and max_tasks')
+        if not isinstance(d.get('execution', 'sequential'), str) or d.get('execution', 'sequential') not in {'sequential', 'parallel'}:
+            raise HarnessError('delegation.execution must be sequential or parallel')
+        if 'max_parallel' in d:
+            positive(d['max_parallel'], 'delegation.max_parallel', True)
+            if d['max_parallel'] > 8 or d.get('execution') != 'parallel':
+                raise HarnessError('max_parallel requires parallel execution and cannot exceed 8')
+        if 'conflict_resolution' in d:
+            cr = d['conflict_resolution']
+            if not isinstance(cr, dict) or not isinstance(cr.get('strategy'), str) or cr.get('strategy') not in {'reject', 'resolve'} or d.get('execution') != 'parallel':
+                raise HarnessError('conflict_resolution needs a parallel reject/resolve strategy')
+            expected = {'strategy'} if cr['strategy'] == 'reject' else {'strategy', 'resolver', 'max_attempts'}
+            if set(cr) != expected:
+                raise HarnessError('invalid conflict_resolution keys')
+            if cr['strategy'] == 'resolve':
+                validate_agent(cr['resolver'], 'resolver')
+                positive(cr['max_attempts'], 'conflict_resolution.max_attempts', True)
+                if cr['max_attempts'] > 3:
+                    raise HarnessError('conflict resolution cannot exceed 3 attempts per merge')
         validate_agent(d['planner'], 'planner')
         if d['planner'].get('adapter') != 'codex':
             raise HarnessError('planner must use the codex adapter')
@@ -150,7 +170,7 @@ def load_config(path: Path) -> dict:
     return c
 
 
-def invoke(argv: list[str], cwd: Path, timeout: float, stdin='', env=None, log: Path | None = None) -> dict:
+def invoke(argv: list[str], cwd: Path, timeout: float, stdin='', env=None, log: Path | None = None, cancel_event=None) -> dict:
     """Logs go to disk; tails are bounded in memory. Kill process group on POSIX."""
     argv = [sys.executable if x == '{python}' else x for x in argv]
     started = time.monotonic()
@@ -167,9 +187,7 @@ def invoke(argv: list[str], cwd: Path, timeout: float, stdin='', env=None, log: 
         except OSError as exc:
             output.write(str(exc))
             return {'returncode': 127, 'status': 'LAUNCH_ERROR', 'seconds': 0, 'tail': str(exc)}
-        try:
-            p.communicate(stdin, timeout=max(.001, timeout))
-        except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
+        def stop_process():
             if os.name == 'nt':
                 subprocess.run(['taskkill', '/PID', str(p.pid), '/T', '/F'], capture_output=True)
             else:
@@ -177,10 +195,30 @@ def invoke(argv: list[str], cwd: Path, timeout: float, stdin='', env=None, log: 
                     os.killpg(p.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
+        deadline = started + timeout
+        first = True
+        try:
+            while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    status = 'CANCELLED'
+                    stop_process()
+                    p.communicate()
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    status = 'TIMEOUT'
+                    stop_process()
+                    p.communicate()
+                    break
+                try:
+                    p.communicate(stdin if first else None, timeout=min(.2, remaining))
+                    break
+                except subprocess.TimeoutExpired:
+                    first = False
+        except KeyboardInterrupt:
+            stop_process()
             p.communicate()
-            if isinstance(exc, KeyboardInterrupt):
-                raise
-            status = 'TIMEOUT'
+            raise
         output.flush()
     with log.open('rb') as saved:
         saved.seek(max(0, log.stat().st_size - 6000))
@@ -230,6 +268,8 @@ class Harness:
         self.home.mkdir(parents=True, exist_ok=True)
         self.state_path = self.home / 'state.json'
         self.deadline = float('inf')
+        self._state_lock = threading.RLock()
+        self.cancel_event = threading.Event()
 
     @contextmanager
     def lock(self):
@@ -246,6 +286,10 @@ class Harness:
             path.unlink(missing_ok=True)
 
     def save(self):
+        with self._state_lock:
+            self._save()
+
+    def _save(self):
         write_json(self.state_path, self.state)
         lines = ['# ProofLoop run', '', f"Task: {self.config['id']}", f"Status: {self.state['status']}",
                  f"Attempts: {self.state['attempts']}", f"Accepted: {self.state['accepted']}",
@@ -338,35 +382,40 @@ class Harness:
         remaining = self.deadline - time.monotonic()
         if remaining <= 0:
             return dict(returncode=124, status='TIME_BUDGET', seconds=0, tail='Active time budget exhausted')
-        return invoke(spec['command'], wt, min(spec.get('timeout_s', 120), remaining), stdin, env, log)
+        return invoke(spec['command'], wt, min(spec.get('timeout_s', 120), remaining), stdin, env, log, cancel_event=self.cancel_event)
 
     def call_limit(self):
         return self.config['budget'].get('max_calls', self.config['budget']['max_attempts'] *
-            (self.config.get('delegation', {}).get('max_tasks', 1) + 2))
+            (self.config.get('delegation', {}).get('max_tasks', 1) + 2 +
+             max(0, self.config.get('delegation', {}).get('max_tasks', 1) - 1) *
+             self.config.get('delegation', {}).get('conflict_resolution', {}).get('max_attempts', 0)))
 
     def model_call(self, spec, role, wt, prompt, log, profile=None):
         from .codex import run_codex
-        if self.state['calls'] >= self.call_limit():
-            return dict(returncode=125, status='CALL_BUDGET', seconds=0, tail='', final_message='')
-        remaining = self.deadline - time.monotonic()
-        if remaining <= 0:
-            return dict(returncode=124, status='TIME_BUDGET', seconds=0, tail='', final_message='')
-        if len(prompt) > self.config['context_chars']:
-            return dict(returncode=1, status='CONTEXT_BUDGET', seconds=0, tail='', final_message='')
-        self.state['calls'] += 1
-        number = self.state['calls']
-        record = {'call': number, 'attempt': self.state['attempts'], 'role': role,
-                  'adapter': spec.get('adapter', 'command'), 'requested_model': spec.get('model'), 'worker_profile': profile,
-                  'status': 'RESERVED', 'usage_complete': False, 'usage': None, 'cost_usd_estimate': None}
-        path = self.home / 'calls' / f'{number:06d}.json'
-        self.save()
-        write_json(path, record)
+        with self._state_lock:
+            if self.cancel_event.is_set():
+                return dict(returncode=130, status='CANCELLED', seconds=0, tail='', final_message='')
+            if self.state['calls'] >= self.call_limit():
+                return dict(returncode=125, status='CALL_BUDGET', seconds=0, tail='', final_message='')
+            remaining = self.deadline - time.monotonic()
+            if remaining <= 0:
+                return dict(returncode=124, status='TIME_BUDGET', seconds=0, tail='', final_message='')
+            if len(prompt) > self.config['context_chars']:
+                return dict(returncode=1, status='CONTEXT_BUDGET', seconds=0, tail='', final_message='')
+            self.state['calls'] += 1
+            number = self.state['calls']
+            record = {'call': number, 'attempt': self.state['attempts'], 'role': role,
+                      'adapter': spec.get('adapter', 'command'), 'requested_model': spec.get('model'), 'worker_profile': profile,
+                      'status': 'RESERVED', 'usage_complete': False, 'usage': None, 'cost_usd_estimate': None}
+            path = self.home / 'calls' / f'{number:06d}.json'
+            self.save()
+            write_json(path, record)
         try:
             timeout = min(spec['timeout_s'], remaining)
             if spec.get('adapter') == 'codex':
-                result = run_codex(spec, role, wt, prompt, log, invoke, timeout)
+                result = run_codex(spec, role, wt, prompt, log, partial(invoke, cancel_event=self.cancel_event), timeout)
             else:
-                result = invoke(spec['command'], wt, timeout, prompt, log=log)
+                result = invoke(spec['command'], wt, timeout, prompt, log=log, cancel_event=self.cancel_event)
                 result['final_message'] = log.read_text(encoding='utf-8') if log.stat().st_size <= 65536 else ''
             record.update({k: v for k, v in result.items() if k not in {'tail', 'final_message'}})
             write_json(path, record)
@@ -388,10 +437,15 @@ class Harness:
         if 'delegation' not in self.config or 'agent' in target:
             return self.model_call(target.get('agent', self.config['agent']), 'worker', wt, text, run / 'agent.log')
         d = self.config['delegation']
+        if d.get('execution') == 'parallel':
+            from .parallel import ensure_supported
+            ensure_supported(self.repo)
         before = files(wt)
         planner_prompt = json.dumps({'instruction': 'Plan the current stage as a bounded sequence of worker tasks. '
             'Do not edit files, run nested agents, or change the acceptance criteria. Return only JSON tasks '
             'with worker and goal fields. Select only the allowed worker names.',
+            'execution': d.get('execution', 'sequential'),
+            'parallel_constraint': 'In parallel mode all workers start from the SAME base. Tasks must be independent; put prerequisite work in earlier stages.',
             'max_tasks': d['max_tasks'], 'workers': list(d['workers']), 'task': text})
         if len(planner_prompt) > self.config['context_chars'] + 2000:
             raise HarnessError('Planner context too large')
@@ -407,6 +461,9 @@ class Harness:
         except (ValueError, TypeError):
             return dict(returncode=1, status='PLAN_INVALID', tail='', seconds=0)
         write_json(run / 'plan.json', {'tasks': tasks})
+        if d.get('execution') == 'parallel':
+            from .parallel import execute_parallel
+            return execute_parallel(self, tasks, wt, text, run)
         last = planner
         for i, task in enumerate(tasks, 1):
             worker_prompt = text + '\nDelegated subtask (original goal and path policy still apply):\n' + task['goal']
@@ -458,6 +515,7 @@ class Harness:
 
     def run(self, verify_only=False):
         with self.lock():
+            self.cancel_event.clear()
             self.initialize()
             self.ensure_detached()
             start = time.monotonic()
@@ -504,6 +562,7 @@ class Harness:
                 self.save()
 
     def attempt(self, target, results):
+        self.cancel_event.clear()
         self.state['attempts'] += 1
         n = self.state['attempts']
         run = self.home / 'runs' / f'{n:04d}'
@@ -543,7 +602,7 @@ class Harness:
                     check['tail'] = check['tail'][-min(2000, self.config['context_chars'] // max(1, len(after))):]
                 review_prompt = json.dumps({'goal': self.config['goal'], 'checks': review_checks,
                     'changed_files': changed(before, candidate),
-                    'instruction': 'Inspect git diff and the listed new files. Do not modify files. Return only JSON: '
+                    'instruction': 'Inspect git diff HEAD and the listed new files. Do not modify files. Return only JSON: '
                     '{"verdict":"APPROVE" or "REJECT","reason":"brief reason"}.'})
                 (run / 'review-prompt.txt').write_text(review_prompt, encoding='utf-8')
                 review = self.model_call(self.config['reviewer'], 'reviewer', wt, review_prompt, run / 'review.log')

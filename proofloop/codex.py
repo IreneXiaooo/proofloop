@@ -19,7 +19,7 @@ PLAN_SCHEMA = {
 
 def build_command(spec: dict, role: str, final: Path, schema: Path | None = None) -> list[str]:
     argv = [*spec.get('command', ['codex']), 'exec', '--json', '--model', spec['model'],
-            '--sandbox', 'workspace-write' if role == 'worker' else 'read-only',
+            '--sandbox', 'workspace-write' if role in {'worker', 'resolver'} else 'read-only',
             '-c', 'agents.enabled=false', '-c', 'features.multi_agent=false',
             '--output-last-message', str(final)]
     if 'reasoning_effort' in spec:
@@ -156,10 +156,16 @@ def usage_summary(home: Path) -> dict:
     return summary
 
 
-def create_codex_demo(destination: Path, worker_model: str, reviewer_model: str, planner_model: str | None = None):
+def create_codex_demo(destination: Path, worker_model: str, reviewer_model: str, planner_model: str | None = None, *, parallel=False, max_parallel=2, resolver_model=None):
     """Prepare a committed task; generation never launches a model."""
     from .core import git, write_json, load_config
     from .demo import create_demo
+    if parallel and not planner_model:
+        from .core import HarnessError
+        raise HarnessError('--parallel requires --planner-model')
+    if resolver_model and not parallel:
+        from .core import HarnessError
+        raise HarnessError('--resolver-model requires --parallel')
     path = create_demo(destination)
     config = json.loads(path.read_text())
     def model_spec(model):
@@ -171,6 +177,10 @@ def create_codex_demo(destination: Path, worker_model: str, reviewer_model: str,
     if planner_model:
         config['delegation'] = {'planner': model_spec(planner_model),
                                 'workers': {'implementer': model_spec(worker_model)}, 'max_tasks': 2}
+    if parallel:
+        config['delegation'].update(execution='parallel', max_parallel=max_parallel)
+        if resolver_model:
+            config['delegation']['conflict_resolution'] = {'strategy':'resolve', 'resolver':model_spec(resolver_model), 'max_attempts':1}
     write_json(path, config)
     load_config(path)
     git(destination, 'add', 'task.json')
@@ -186,6 +196,9 @@ def doctor(config: dict, home: Path, invoke) -> dict:
         specs.append(config['reviewer'])
     if 'delegation' in config:
         specs += [config['delegation']['planner'], *config['delegation']['workers'].values()]
+        resolver = config['delegation'].get('conflict_resolution', {}).get('resolver')
+        if resolver:
+            specs.append(resolver)
     specs += [s['agent'] for s in config['stages'] if 'agent' in s]
     results = []
     seen = set()
