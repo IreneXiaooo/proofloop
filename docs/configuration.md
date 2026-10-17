@@ -26,4 +26,12 @@ Globs use Python `fnmatchcase` against POSIX-style paths. `src/**` includes path
 
 Config edits after initialization stop the run. Use a new task ID when changing goals, budgets, adapters, or acceptance criteria. This makes policy changes explicit. There is no hidden budget reset or automatic loosening of review.
 
-The report counts invocations and active seconds. Dollar cost and token counts are unknown; no cost savings are claimed or enforced. Time caps are operational bounds, not provider billing guarantees. Cleanup and filesystem operations can exceed the remaining wall-time allowance slightly.
+The report counts invocations and active seconds. Generic command token/cost usage is unknown. Codex calls provide usage telemetry as described below; no cost savings are claimed or enforced. Time caps are operational bounds, not provider billing guarantees. Cleanup and filesystem operations can exceed the remaining wall-time allowance slightly.
+
+## Added in 0.2
+
+Agent specifications may use `adapter: "codex"`, required `model`, optional `command` executable prefix, `reasoning_effort`, `pricing`, and `timeout_s`. Planner/reviewer use a managed read-only sandbox; workers use workspace-write. Generic command specifications remain supported.
+
+Optional top-level `delegation` contains a Codex `planner`, a map of named Codex or generic command `workers`, and integer `max_tasks` (1–8). A stage-level `agent` bypasses delegation and overrides the global direct worker. `budget.max_calls` caps all harness-issued role invocations across resumes. See [the complete contract](codex.md). Existing version-1 configs and their normalized fingerprints are preserved when these fields are absent.
+
+Usage is now collected for Codex JSONL calls. Dollar figures are estimates only when configured pricing and complete usage are present; no token/dollar spending cap is implied.

@@ -26,3 +26,7 @@ Each check is evaluated independently. Previously passing checks are re-run on c
 ## Reused foundations
 
 Git's [worktree interface](https://git-scm.com/docs/git-worktree) supplies linked checkouts, and [update-ref](https://git-scm.com/docs/git-update-ref) supplies compare-and-swap publication. Python's [subprocess interface](https://docs.python.org/3/library/subprocess.html) supplies argv-based process execution and timeout handling. Using those existing primitives keeps the core install small and inspectable.
+
+## Codex integration (0.2)
+
+`codex.py` builds managed CLI arguments, separates structured final results from logs, parses usage events, validates bounded plans/reviews, prepares example projects, and checks executable versions. `core.py` owns call reservations, lifecycle budgets, planner/worker execution, and publication; model output never changes acceptance checks. The controller requests native agent tools disabled, then executes its own validated worker list sequentially. The trust model is unchanged. No real-model or savings claim follows from CLI simulation tests.

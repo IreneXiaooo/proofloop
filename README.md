@@ -1,6 +1,7 @@
 <p align="center"><img src="assets/hero.svg" alt="ProofLoop — Your agent proposes. Your checks decide." width="100%"></p>
 
 <p align="center">
+  <a href="https://github.com/IreneXiaooo/proofloop/actions"><img alt="CI" src="https://github.com/IreneXiaooo/proofloop/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-34d399"></a>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-60a5fa">
   <img alt="Zero runtime dependencies" src="https://img.shields.io/badge/runtime_dependencies-0-a78bfa">
@@ -54,6 +55,24 @@ proofloop --help
 ```
 
 No hosted service, database, provider SDK, or runtime dependency is required. Source repository: [IreneXiaooo/proofloop](https://github.com/IreneXiaooo/proofloop). This alpha is installed from source; no PyPI release is claimed.
+
+## Codex: Astra + Sol
+
+**New in 0.2:** built-in Codex CLI adapters, separate models for worker/reviewer/planner, bounded sequential delegation, mixed-provider command workers, and token usage reports.
+
+```bash
+python -m pip install -e .
+proofloop init-codex --dir my-task --worker-model gpt-6.1-sol --reviewer-model gpt-6-astra
+proofloop doctor my-task/task.json --repo my-task
+proofloop run my-task/task.json --repo my-task
+proofloop usage my-task/task.json --repo my-task
+```
+
+Install and authenticate Codex first. Add `--planner-model gpt-6-astra` to the setup command to enable bounded planning/delegation. Models must be available to your account. Setup and `doctor` make no model calls; `run` can consume your allowance.
+
+[Codex setup, delegation, and usage →](docs/codex.md)
+
+<sup>CLI contract tested with a simulated Codex process. Live Astra/Sol validation remains pending.</sup>
 
 ## What you get
 
@@ -141,15 +160,15 @@ Partial fixes that do not pass an entire new stage are rejected. Make stages sma
 
 ## Scope and trust
 
-v0.1 targets trusted local projects on a single machine. Git worktrees isolate file versions; they are **not a security sandbox**. Commands inherit your user permissions and environment. A malicious command can access the shared Git directory, credentials, network, or files outside its worktree. Use a restricted container or VM for untrusted agents and repositories.
+ProofLoop targets trusted local projects on a single machine. Git worktrees isolate file versions; they are **not a security sandbox**. Commands inherit your user permissions and environment. A malicious command can access the shared Git directory, credentials, network, or files outside its worktree. Use a restricted container or VM for untrusted agents and repositories.
 
 File guards cover tracked files and nonignored new files. Ignored files, external datasets, and external side effects are not guarded or rolled back. Keep acceptance checks and their dependencies outside writable paths. Do not put secrets or private material in tracked files. Logs may contain provider output; inspect them before sharing.
 
-Runtime has no third-party dependencies; editable installation uses setuptools. POSIX is the initial target; Linux is tested here. A Linux/macOS CI workflow is included. Windows has process cleanup support but has not been validated. Live LLM adapters, dollar/token budgets, caching, and claims of lower cost or better generalization are not included in this release.
+Runtime has no third-party dependencies; editable installation uses setuptools. POSIX is the initial target; Linux is tested here. A Linux/macOS CI workflow is included. Windows has process cleanup support but has not been validated. The Codex adapter and role/delegation flow have simulated CLI integration coverage. Live-model validation, hard dollar/token budgets, caching, and claims of lower cost or better generalization remain pending.
 
 ## Read more
 
-- [Configuration](docs/configuration.md) · [Task design](docs/task-design.md) · [Adapters](docs/adapters.md)
+- [Codex integration](docs/codex.md) · [Configuration](docs/configuration.md) · [Task design](docs/task-design.md) · [Adapters](docs/adapters.md)
 - [Recovery and evidence](docs/recovery.md) · [Architecture and source provenance](docs/architecture.md)
 - [Validation record](docs/validation.md) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md)
 

@@ -1,6 +1,6 @@
 # Results tracker
 
-Revision: 2. Date: 2026-10-17. Status: LOCAL_ALPHA_READY_FOR_REVIEW.
+Revision: 3. Date: 2026-10-17. Status: CODEX_ADAPTER_CONTRACT_TESTED.
 
 ## Goal and constraints
 
@@ -27,3 +27,13 @@ Use one tested CLI adapter and a frozen small task suite. Compare equal-budget o
 ## Delivery
 
 Source, package metadata, MIT license, visual README, offline demos, task documentation, contribution templates, CI configuration, and launch copy are prepared. The public repository IreneXiaooo/proofloop was created with explicit user authorization. This commit prepares the release source for publication. Hosted CI status must be checked after publication.
+
+## Codex upgrade
+
+Authorized: add the previously proposed Codex roles/delegation/usage upgrade and publish to the existing public repository. Implemented version 0.2: managed Codex CLI adapter; explicit worker/planner/reviewer models; validated sequential task lists; native agent-tool disabling requested through CLI configuration; cumulative role-call budgets; bounded role prompts; persisted usage records and optional cost estimates; init-codex, doctor, and usage commands. Generic task configurations remain valid.
+
+Observed: 57 local tests pass; old task fingerprints preserved; offline data/report recipes complete. No Codex executable is installed here, so the model-facing integration is tested through a CLI fixture. Live model access, actual sandbox behavior, pricing, token savings, and generalization remain unresolved. Evidence: tests/test_codex.py, tests/fake_codex.py, docs/codex.md, docs/validation.md.
+
+Next decisive validation: run the generated mean task on an authenticated, version-recorded Codex installation using the requested model IDs; inspect role logs, usage completeness, fixed checks, and the resulting diff. Then compare direct versus delegated runs at equal call/time budgets on a frozen task suite.
+
+Mixed-provider coverage: a Codex planner assigns a Codex worker and a generic command worker to the same candidate. Their combined output passes the frozen check; the generic worker is identified by its configured profile and its usage remains unknown. This test simulates the provider boundary and does not call Qwen.

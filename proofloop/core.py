@@ -59,9 +59,40 @@ def patterns(value, name, nonempty=False):
             raise HarnessError(f'unsafe {name} pattern: {p!r}')
 
 
+def validate_agent(value, role):
+    if not isinstance(value, dict):
+        raise HarnessError(f'{role} must be an agent specification')
+    allowed = {'command', 'timeout_s', 'adapter', 'model', 'reasoning_effort', 'pricing'}
+    if set(value) - allowed:
+        raise HarnessError(f'unknown {role} keys')
+    if value.get('adapter', 'command') not in {'command', 'codex'}:
+        raise HarnessError(f'unknown {role} adapter')
+    if value.get('adapter') == 'codex':
+        model = value.get('model')
+        if not isinstance(model, str) or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,127}', model):
+            raise HarnessError(f'{role}.model is required for codex')
+        if 'command' in value:
+            command(value['command'], role + '.command')
+        if 'reasoning_effort' in value and (not isinstance(value['reasoning_effort'], str) or value['reasoning_effort'] not in {'low', 'medium', 'high', 'xhigh'}):
+            raise HarnessError('reasoning_effort must be low, medium, high or xhigh')
+        if 'pricing' in value:
+            rates = value['pricing']
+            expected = {'input_per_million', 'cached_input_per_million', 'output_per_million'}
+            if not isinstance(rates, dict) or set(rates) != expected:
+                raise HarnessError('pricing must specify all three per-million token rates')
+            for rate in rates.values():
+                if type(rate) not in {int, float} or not math.isfinite(rate) or rate < 0:
+                    raise HarnessError('pricing rates must be finite and nonnegative')
+    else:
+        command(value.get('command'), role)
+        if any(k in value for k in ['model', 'reasoning_effort', 'pricing']):
+            raise HarnessError('model, reasoning_effort and pricing require adapter=codex')
+    positive(value.setdefault('timeout_s', 600), role + '.timeout_s')
+
+
 def load_config(path: Path) -> dict:
     c = json.loads(path.read_text(encoding='utf-8'))
-    allowed = {'version', 'id', 'goal', 'agent', 'reviewer', 'stages', 'writable', 'protected', 'budget', 'context_chars'}
+    allowed = {'version', 'id', 'goal', 'agent', 'reviewer', 'stages', 'writable', 'protected', 'budget', 'context_chars', 'delegation'}
     if not isinstance(c, dict) or set(c) - allowed:
         raise HarnessError('Unknown config keys; see docs/configuration.md')
     if c.get('version') != 1 or not isinstance(c.get('id'), str) or not re.fullmatch(r'[a-z][a-z0-9_-]{0,47}', c['id']):
@@ -73,17 +104,29 @@ def load_config(path: Path) -> dict:
     for role in ['agent', 'reviewer']:
         if role not in c and role == 'reviewer':
             continue
-        value = c.get(role)
-        if not isinstance(value, dict) or set(value) - {'command', 'timeout_s'}:
-            raise HarnessError(f'{role} needs command and optional timeout_s')
-        command(value.get('command'), role)
-        positive(value.setdefault('timeout_s', 600), role + '.timeout_s')
+        validate_agent(c.get(role), role)
+    if 'delegation' in c:
+        d = c['delegation']
+        if not isinstance(d, dict) or set(d) != {'planner', 'workers', 'max_tasks'}:
+            raise HarnessError('delegation needs planner, workers, and max_tasks')
+        validate_agent(d['planner'], 'planner')
+        if d['planner'].get('adapter') != 'codex':
+            raise HarnessError('planner must use the codex adapter')
+        positive(d['max_tasks'], 'delegation.max_tasks', True)
+        if d['max_tasks'] > 8:
+            raise HarnessError('delegation.max_tasks cannot exceed 8')
+        if not isinstance(d['workers'], dict) or not d['workers']:
+            raise HarnessError('delegation.workers must be a nonempty named profile map')
+        for name, worker in d['workers'].items():
+            if not re.fullmatch(r'[a-z][a-z0-9_-]{0,47}', name):
+                raise HarnessError('invalid worker name')
+            validate_agent(worker, 'worker')
     stages = c.get('stages')
     if not isinstance(stages, list) or not stages:
         raise HarnessError('at least one stage is required')
     seen = set()
     for stage in stages:
-        if not isinstance(stage, dict) or set(stage) - {'id', 'goal', 'check', 'timeout_s', 'depends_on'}:
+        if not isinstance(stage, dict) or set(stage) - {'id', 'goal', 'check', 'timeout_s', 'depends_on', 'agent'}:
             raise HarnessError('invalid stage keys')
         sid = stage.get('id', '')
         if not isinstance(sid, str) or not re.fullmatch(r'[a-z][a-z0-9_-]{0,47}', sid) or sid in seen:
@@ -92,13 +135,17 @@ def load_config(path: Path) -> dict:
         if not isinstance(deps, list) or any(d not in seen for d in deps):
             raise HarnessError('dependencies must name earlier stages (acyclic order)')
         seen.add(sid)
+        if 'agent' in stage:
+            validate_agent(stage['agent'], sid + '.agent')
         command(stage.get('check'), sid + '.check')
         positive(stage.setdefault('timeout_s', 120), sid + '.timeout_s')
     budget = c.setdefault('budget', {})
-    if not isinstance(budget, dict) or set(budget) - {'max_attempts', 'max_seconds', 'stall_after'}:
+    if not isinstance(budget, dict) or set(budget) - {'max_attempts', 'max_seconds', 'stall_after', 'max_calls'}:
         raise HarnessError('invalid budget keys')
     for k, default in [('max_attempts', 8), ('max_seconds', 3600), ('stall_after', 3)]:
         positive(budget.setdefault(k, default), 'budget.' + k, k != 'max_seconds')
+    if 'max_calls' in budget:
+        positive(budget['max_calls'], 'budget.max_calls', True)
     positive(c.setdefault('context_chars', 16000), 'context_chars', True)
     return c
 
@@ -209,8 +256,21 @@ class Harness:
         lines += ['', '## Recent decisions', '']
         for item in self.state.get('history', [])[-10:]:
             lines.append(f"- Attempt {item['attempt']}: {item['decision']} — {', '.join(item['reasons'])}")
-        lines += ['', 'Costs and tokens are unknown unless your adapter logs them separately.',
+        from .codex import usage_summary
+        usage = usage_summary(self.home)
+        write_json(self.home / 'usage.json', usage)
+        lines += ['', '## Usage', '',
+                  f"Known tokens: input={usage['input_tokens']}, cached input={usage['cached_input_tokens']}, output={usage['output_tokens']}",
+                  f"Calls with unknown usage: {usage['unknown_usage_calls']}",
+                  f"Estimated USD (complete only): {usage['cost_usd_estimate']}",
+                  'Estimates use configured rates, not billing records. Unknown usage is not zero.',
                   'PASS means the configured checks passed; review the result before merging.', '']
+        if usage['by_role_model']:
+            lines += ['| Role / requested model | Calls | Input | Cached input | Output | Unknown usage calls |',
+                      '| --- | ---: | ---: | ---: | ---: | ---: |']
+            for key, group in usage['by_role_model'].items():
+                lines.append(f"| {key} | {group['calls']} | {group['input_tokens']} | {group['cached_input_tokens']} | {group['output_tokens']} | {group['unknown_usage_calls']} |")
+            lines += ['']
         (self.home / 'REPORT.md').write_text('\n'.join(lines), encoding='utf-8')
 
     def current(self):
@@ -249,7 +309,7 @@ class Harness:
             raise HarnessError('Commit or stash all nonignored changes before starting a new task.')
         head = git(self.repo, 'rev-parse', 'HEAD')
         if git(self.repo, 'ls-files', '--stage').find('160000 ') >= 0:
-            raise HarnessError('Submodules are not supported in v0.1.')
+            raise HarnessError('Submodules are not supported.')
         try:
             git(self.repo, 'show-ref', '--verify', self.ref)
         except HarnessError:
@@ -279,6 +339,86 @@ class Harness:
         if remaining <= 0:
             return dict(returncode=124, status='TIME_BUDGET', seconds=0, tail='Active time budget exhausted')
         return invoke(spec['command'], wt, min(spec.get('timeout_s', 120), remaining), stdin, env, log)
+
+    def call_limit(self):
+        return self.config['budget'].get('max_calls', self.config['budget']['max_attempts'] *
+            (self.config.get('delegation', {}).get('max_tasks', 1) + 2))
+
+    def model_call(self, spec, role, wt, prompt, log, profile=None):
+        from .codex import run_codex
+        if self.state['calls'] >= self.call_limit():
+            return dict(returncode=125, status='CALL_BUDGET', seconds=0, tail='', final_message='')
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            return dict(returncode=124, status='TIME_BUDGET', seconds=0, tail='', final_message='')
+        if len(prompt) > self.config['context_chars']:
+            return dict(returncode=1, status='CONTEXT_BUDGET', seconds=0, tail='', final_message='')
+        self.state['calls'] += 1
+        number = self.state['calls']
+        record = {'call': number, 'attempt': self.state['attempts'], 'role': role,
+                  'adapter': spec.get('adapter', 'command'), 'requested_model': spec.get('model'), 'worker_profile': profile,
+                  'status': 'RESERVED', 'usage_complete': False, 'usage': None, 'cost_usd_estimate': None}
+        path = self.home / 'calls' / f'{number:06d}.json'
+        self.save()
+        write_json(path, record)
+        try:
+            timeout = min(spec['timeout_s'], remaining)
+            if spec.get('adapter') == 'codex':
+                result = run_codex(spec, role, wt, prompt, log, invoke, timeout)
+            else:
+                result = invoke(spec['command'], wt, timeout, prompt, log=log)
+                result['final_message'] = log.read_text(encoding='utf-8') if log.stat().st_size <= 65536 else ''
+            record.update({k: v for k, v in result.items() if k not in {'tail', 'final_message'}})
+            write_json(path, record)
+            self.save()
+            return result
+        except BaseException:
+            # A launched call can consume usage even when no terminal event arrives.
+            if spec.get('adapter') == 'codex':
+                from .codex import parse_events, estimate_cost
+                record.update(parse_events(log))
+                record['cost_usd_estimate'] = estimate_cost(record['usage'], spec.get('pricing'))
+            record['status'] = 'INTERRUPTED_OR_ERROR'
+            write_json(path, record)
+            self.save()
+            raise
+
+    def execute_workers(self, target, wt, text, run):
+        from .codex import validate_plan
+        if 'delegation' not in self.config or 'agent' in target:
+            return self.model_call(target.get('agent', self.config['agent']), 'worker', wt, text, run / 'agent.log')
+        d = self.config['delegation']
+        before = files(wt)
+        planner_prompt = json.dumps({'instruction': 'Plan the current stage as a bounded sequence of worker tasks. '
+            'Do not edit files, run nested agents, or change the acceptance criteria. Return only JSON tasks '
+            'with worker and goal fields. Select only the allowed worker names.',
+            'max_tasks': d['max_tasks'], 'workers': list(d['workers']), 'task': text})
+        if len(planner_prompt) > self.config['context_chars'] + 2000:
+            raise HarnessError('Planner context too large')
+        (run / 'planner-prompt.txt').write_text(planner_prompt, encoding='utf-8')
+        planner = self.model_call(d['planner'], 'planner', wt, planner_prompt, run / 'planner.log')
+        write_json(run / 'planner.json', planner)
+        if files(wt) != before:
+            return dict(returncode=1, status='PLANNER_MODIFIED_FILES', tail='', seconds=0)
+        if planner['returncode'] or planner['status'] != 'OK':
+            return planner
+        try:
+            tasks = validate_plan(json.loads(planner['final_message']), d)
+        except (ValueError, TypeError):
+            return dict(returncode=1, status='PLAN_INVALID', tail='', seconds=0)
+        write_json(run / 'plan.json', {'tasks': tasks})
+        last = planner
+        for i, task in enumerate(tasks, 1):
+            worker_prompt = text + '\nDelegated subtask (original goal and path policy still apply):\n' + task['goal']
+            (run / f'worker-{i}-prompt.txt').write_text(worker_prompt, encoding='utf-8')
+            last = self.model_call(d['workers'][task['worker']], 'worker', wt, worker_prompt, run / f'worker-{i}.log', profile=task['worker'])
+            write_json(run / f'worker-{i}.json', last)
+            if last['returncode'] or last['status'] != 'OK':
+                return last
+            # Stop a bad delegate immediately; do not let another repair a boundary violation.
+            if self.guards(before, files(wt)):
+                return dict(returncode=1, status='WORKER_PATH_POLICY', tail='', seconds=0)
+        return last
 
     def verify(self, wt, directory):
         results = {}
@@ -337,6 +477,9 @@ class Harness:
                     if time.monotonic() >= self.deadline:
                         self.state['status'] = 'TIME_BUDGET'
                         break
+                    if self.state['calls'] >= self.call_limit():
+                        self.state['status'] = 'CALL_BUDGET'
+                        break
                     if self.state['attempts'] >= budget['max_attempts']:
                         self.state['status'] = 'ATTEMPT_BUDGET'
                         break
@@ -366,7 +509,6 @@ class Harness:
         run = self.home / 'runs' / f'{n:04d}'
         run.mkdir(parents=True, exist_ok=False)
         self.state['status'] = 'RUNNING'
-        self.state['calls'] += 1
         self.save()  # attempts are charged before launch, including interrupted calls
         reasons = []
         new_state = None
@@ -375,7 +517,7 @@ class Harness:
             text = self.prompt(target, json.loads(json.dumps(results)))
             (run / 'prompt.txt').write_text(text, encoding='utf-8')
             print(f"Attempt {n} · {target['id']} · executing", flush=True)
-            agent = self.call(self.config['agent'], wt, text, run / 'agent.log')
+            agent = self.execute_workers(target, wt, text, run)
             write_json(run / 'agent.json', agent)
             candidate = files(wt)
             reasons += self.guards(before, candidate)
@@ -396,18 +538,22 @@ class Harness:
                 if not passed(after) - passed(results):
                     reasons.append('NO_NEW_PASS')
             if not reasons and 'reviewer' in self.config:
-                self.state['calls'] += 1
-                self.save()
-                review_prompt = json.dumps({'goal': self.config['goal'], 'checks': after,
+                review_checks = json.loads(json.dumps(after))
+                for check in review_checks.values():
+                    check['tail'] = check['tail'][-min(2000, self.config['context_chars'] // max(1, len(after))):]
+                review_prompt = json.dumps({'goal': self.config['goal'], 'checks': review_checks,
                     'changed_files': changed(before, candidate),
                     'instruction': 'Inspect git diff and the listed new files. Do not modify files. Return only JSON: '
                     '{"verdict":"APPROVE" or "REJECT","reason":"brief reason"}.'})
                 (run / 'review-prompt.txt').write_text(review_prompt, encoding='utf-8')
-                review = self.call(self.config['reviewer'], wt, review_prompt, run / 'review.log')
+                review = self.model_call(self.config['reviewer'], 'reviewer', wt, review_prompt, run / 'review.log')
                 write_json(run / 'review.json', review)
                 try:
-                    verdict = json.loads((run / 'review.log').read_text())
-                    if review['returncode'] or review['status'] != 'OK' or verdict['verdict'] != 'APPROVE' or not isinstance(verdict['reason'], str):
+                    from .codex import valid_review
+                    verdict = json.loads(review.get('final_message', ''))
+                    if not valid_review(verdict):
+                        reasons.append('REVIEW_INVALID')
+                    elif review['returncode'] or review['status'] != 'OK' or verdict['verdict'] != 'APPROVE':
                         reasons.append('REVIEW_REJECTED')
                 except (ValueError, KeyError, TypeError):
                     reasons.append('REVIEW_INVALID')

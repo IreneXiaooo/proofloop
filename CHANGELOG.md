@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0 — 2026-10-17
+
+Added Codex CLI worker/reviewer/planner adapters; explicit models and reasoning effort; schema-validated bounded sequential delegation with mixed Codex/command worker profiles; stage worker overrides; cumulative role-call limits; per-call JSONL usage records and configurable price estimates; `init-codex`, `doctor`, and `usage` commands. Preserved generic command tasks. Integration tests simulate the Codex CLI; live-model validation is pending.
+
 ## 0.1.0 — 2026-10-17
 
 Initial local alpha generalized from a project-specific agent harness. Added provider-neutral command adapters, configurable stages, isolated attempts, full-stage regression checks, path policies, strict optional review, bounded retries, resumable state, reports, and offline code/data/report fixtures. Included public contribution materials and integration tests. No real-model benchmark or hosted package release is claimed.

@@ -1,5 +1,7 @@
 # Bring your agent
 
+For the built-in Codex adapter, model roles, and bounded delegation, see [Codex integration](codex.md). The generic process contract below remains supported.
+
 ProofLoop does not depend on a model vendor. Its adapter interface is a local process:
 
 - Input: one UTF-8 task prompt on stdin. Includes goal, active stage, path policy, bounded check tails, and recent decisions.

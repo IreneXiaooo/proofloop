@@ -50,3 +50,7 @@ A repository-wide exclusive lock prevents concurrent ProofLoop writers. A crash 
 Publication uses Git compare-and-swap and a write-ahead state entry. Resume reconciles an interrupted update when the result branch matches that pending commit. If a person moved the branch, the controller refuses to guess. Review those changes and start a new task ID from the desired committed baseline. There is no remote push or merge.
 
 Git worktrees share object storage and Git administration. Protect the host with a restricted container/VM when commands are untrusted. File guards cannot undo external side effects.
+
+## Model-call ledger (0.2)
+
+`calls/000001.json` records reserved/completed/interrupted calls, roles, requested models, token usage, and optional cost estimates. `usage.json` is rebuilt on state saves; `proofloop usage task.json` computes it from the ledger. Codex role logs have adjacent `.final.txt` and, for structured roles, `.schema.json` files. An unfinished reservation remains an unknown-usage call. Legacy calls without records are explicitly counted as unattributed. `CALL_BUDGET` stops further role invocations when the cumulative cap is exhausted. A crash can consume time/usage not reported before termination; use provider limits for hard financial controls.
