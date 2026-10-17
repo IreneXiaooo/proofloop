@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" role="img" aria-labelledby="title desc">
+<title id="title">ProofLoop</title><desc id="desc">Your agent proposes. Your checks decide. A local control loop for verifiable agent work.</desc>
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0b1222"/><stop offset="1" stop-color="#12283b"/></linearGradient><linearGradient id="accent"><stop stop-color="#68e0cf"/><stop offset="1" stop-color="#7dbbff"/></linearGradient></defs>
+<rect width="1200" height="460" rx="24" fill="url(#bg)"/>
+<circle cx="1040" cy="45" r="210" fill="#68e0cf" opacity=".035"/>
+<g font-family="Arial,Helvetica,sans-serif">
+<rect x="54" y="46" width="220" height="28" rx="14" fill="#20364a"/><text x="71" y="65" fill="#9debdc" font-size="12" letter-spacing="2">VERIFIABLE AGENT WORK</text>
+<text x="54" y="159" font-size="72" font-weight="700" fill="#f0f6fc" letter-spacing="-3">ProofLoop<tspan fill="#68e0cf">.</tspan></text>
+<text x="57" y="213" font-size="26" fill="#e0ebf7">Your agent proposes.</text><text x="57" y="249" font-size="26" fill="#68e0cf">Your checks decide.</text>
+<text x="57" y="303" font-size="16" fill="#9aafc5">Code. Data. Documents. Research artifacts.</text>
+<rect x="57" y="346" width="132" height="36" rx="8" fill="#20364a"/><text x="74" y="369" fill="#cbd9e8" font-size="13">LOCAL FIRST</text>
+<rect x="201" y="346" width="154" height="36" rx="8" fill="#20364a"/><text x="218" y="369" fill="#cbd9e8" font-size="13">BRING YOUR CLI</text>
+<rect x="367" y="346" width="146" height="36" rx="8" fill="#20364a"/><text x="383" y="369" fill="#cbd9e8" font-size="13">AUDIT EVERY TRY</text>
+<rect x="602" y="79" width="542" height="305" rx="14" fill="#090f1b" stroke="#2e455c"/>
+<circle cx="627" cy="103" r="5" fill="#f08c82"/><circle cx="645" cy="103" r="5" fill="#f4ca70"/><circle cx="663" cy="103" r="5" fill="#68d3ae"/>
+<text x="695" y="108" fill="#8199b1" font-size="12">proofloop demo — offline</text>
+<g font-family="monospace" font-size="16"><text x="628" y="154" fill="#cbd9e8">$ python -m proofloop demo</text><text x="628" y="200" fill="#f4ca70">01  REJECTED  ·  no new pass</text><text x="628" y="235" fill="#68e0cf">02  ACCEPTED  ·  checks passed</text><path d="M628 260H1117" stroke="#24384e"/><text x="628" y="298" fill="#f0f6fc">COMPLETE</text><text x="628" y="331" fill="#9aafc5">1 accepted / 2 attempts</text><text x="628" y="358" fill="#8199b1" font-size="12">scripted demo · no API key required</text></g></g>
+</svg>

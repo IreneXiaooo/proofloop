@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "id": "clean-table",
+  "goal": "Create clean.csv from raw.csv. Trim and lowercase names, preserve row order and duplicates, keep integer values.",
+  "agent": {"command": ["{python}", "demo_worker.py"], "timeout_s": 15},
+  "writable": ["clean.csv"],
+  "protected": ["raw.csv", "checks/**", "task.json", "demo_worker.py"],
+  "stages": [{"id": "table-contract", "check": ["{python}", "checks/check_csv.py"]}],
+  "budget": {"max_attempts": 2, "max_seconds": 60, "stall_after": 2}
+}

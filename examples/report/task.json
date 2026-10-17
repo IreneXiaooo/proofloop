@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "id": "assay-report",
+  "goal": "Write report.md with heading Assay summary, Evidence and Limitations sections, citation [S1], and a table containing S1, n=3, mean=4.0. Identify the data as synthetic; claim no biological conclusion.",
+  "agent": {"command": ["{python}", "demo_worker.py"], "timeout_s": 15},
+  "writable": ["report.md"],
+  "protected": ["sources.json", "checks/**", "task.json", "demo_worker.py"],
+  "stages": [{"id": "report-contract", "check": ["{python}", "checks/check_report.py"]}],
+  "budget": {"max_attempts": 2, "max_seconds": 60, "stall_after": 2}
+}
