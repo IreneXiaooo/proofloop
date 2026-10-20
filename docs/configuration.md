@@ -39,3 +39,7 @@ Usage is now collected for Codex JSONL calls. Dollar figures are estimates only 
 ## Added in 0.3
 
 `delegation.execution` may be `sequential` (default when absent) or `parallel`. Optional `max_parallel` is 1–8 and requires parallel mode (effective concurrency never exceeds task count). Optional `conflict_resolution` is either `{"strategy":"reject"}` or `{"strategy":"resolve","resolver":<agent spec>,"max_attempts":1}`; it requires parallel mode, and max attempts is limited to 1–3 per conflicting integration step. Worker/resolver profiles can use Codex or generic commands. Existing configurations receive no inserted defaults, preserving their fingerprints. See [parallel contracts](parallel.md) for support limits, cancellation, and evidence.
+
+## Harness evolution (0.4)
+
+Opt-in harness search uses a separate evolution configuration and `proofloop evolve`; do not add these keys to ordinary task files. See [the fixed-weight evolution contract](evolution.md). Normal task acceptance and existing configuration fingerprints are unchanged.

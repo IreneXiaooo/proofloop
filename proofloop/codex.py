@@ -15,11 +15,21 @@ PLAN_SCHEMA = {
         'required': ['worker', 'goal'], 'additionalProperties': False}}},
     'required': ['tasks'], 'additionalProperties': False,
 }
+PROPOSAL_SCHEMA = {
+    'type': 'object', 'properties': {'strategy': {'type': 'string'}, 'mechanism': {'type': 'string'}},
+    'required': ['strategy', 'mechanism'], 'additionalProperties': False,
+}
+REFLECTION_SCHEMA = {
+    'type': 'object', 'properties': {
+        'action': {'type': 'string', 'enum': ['keep', 'revise', 'crossover']},
+        'directive': {'type': 'string'}, 'donor': {'type': 'string'}},
+    'required': ['action', 'directive', 'donor'], 'additionalProperties': False,
+}
 
 
 def build_command(spec: dict, role: str, final: Path, schema: Path | None = None) -> list[str]:
     argv = [*spec.get('command', ['codex']), 'exec', '--json', '--model', spec['model'],
-            '--sandbox', 'workspace-write' if role in {'worker', 'resolver'} else 'read-only',
+            '--sandbox', 'workspace-write' if role in {'worker', 'resolver', 'proposer'} else 'read-only',
             '-c', 'agents.enabled=false', '-c', 'features.multi_agent=false',
             '--output-last-message', str(final)]
     if 'reasoning_effort' in spec:
@@ -79,9 +89,11 @@ def run_codex(spec, role, wt, prompt, log, invoke, timeout):
     final = log.with_suffix('.final.txt')
     schema_path = None
     log.parent.mkdir(parents=True, exist_ok=True)
-    if role in {'planner', 'reviewer'}:
+    schemas = {'planner': PLAN_SCHEMA, 'reviewer': REVIEW_SCHEMA,
+               'proposer': PROPOSAL_SCHEMA, 'reflector': REFLECTION_SCHEMA}
+    if role in schemas:
         schema_path = log.with_suffix('.schema.json')
-        schema_path.write_text(json.dumps(PLAN_SCHEMA if role == 'planner' else REVIEW_SCHEMA), encoding='utf-8')
+        schema_path.write_text(json.dumps(schemas[role]), encoding='utf-8')
     final.unlink(missing_ok=True)
     argv = build_command(spec, role, final, schema_path)
     row = invoke(argv, wt, timeout, prompt, log=log)

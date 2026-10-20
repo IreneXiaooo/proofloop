@@ -56,6 +56,19 @@ proofloop --help
 
 No hosted service, database, provider SDK, or runtime dependency is required. Source repository: [IreneXiaooo/proofloop](https://github.com/IreneXiaooo/proofloop). This alpha is installed from source; no PyPI release is claimed.
 
+## Evolve the harness from execution evidence
+
+**New in 0.4:** an opt-in Proposer–Reflector search inspired by [Evo²](https://arxiv.org/abs/2610.13025). Keep the executor and development tasks fixed while proposing harness edits, measuring their effects, and revising or adapting an evaluated donor strategy.
+
+```bash
+# No API key: propose, evaluate, reflect, revise, and inspect a candidate tree.
+python -m proofloop evolution-demo
+```
+
+Only measured, activated changes without task regressions can replace the champion. Search preserves an auditable archive and writes a separate result branch. Existing task execution and parallel/conflict-resolution settings remain available. Model weights stay fixed; this does not implement SFT/GRPO or claim the paper's benchmark results.
+
+[Configure harness evolution →](docs/evolution.md)
+
 ## Parallel workers, verified together
 
 **New in 0.3:** isolated parallel worktrees, deterministic three-way integration, and bounded text-conflict resolution. Mix Codex and command-based workers while keeping the same acceptance gates.
@@ -181,7 +194,7 @@ Runtime has no third-party dependencies; editable installation uses setuptools. 
 
 ## Read more
 
-- [Parallel execution](docs/parallel.md) · [Codex integration](docs/codex.md) · [Configuration](docs/configuration.md) · [Task design](docs/task-design.md) · [Adapters](docs/adapters.md)
+- [Harness evolution](docs/evolution.md) · [Parallel execution](docs/parallel.md) · [Codex integration](docs/codex.md) · [Configuration](docs/configuration.md) · [Task design](docs/task-design.md) · [Adapters](docs/adapters.md)
 - [Recovery and evidence](docs/recovery.md) · [Architecture and source provenance](docs/architecture.md)
 - [Validation record](docs/validation.md) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md)
 

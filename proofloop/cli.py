@@ -16,6 +16,11 @@ def main(argv=None):
     demo.add_argument('--dir', type=Path, default=Path('.proofloop-demo'))
     pdemo = sub.add_parser('parallel-demo', help='offline isolated workers and conflict-resolution demo')
     pdemo.add_argument('--dir', type=Path, default=Path('.proofloop-parallel-demo'))
+    edemo = sub.add_parser('evolution-demo', help='offline propose/evaluate/reflect/revise harness search')
+    edemo.add_argument('--dir', type=Path, default=Path('.proofloop-evolution-demo'))
+    evolve = sub.add_parser('evolve', help='opt-in fixed-weight harness evolution on a frozen development suite')
+    evolve.add_argument('config', type=Path)
+    evolve.add_argument('--repo', type=Path, default=Path('.'))
     init = sub.add_parser('init-codex', help='prepare a committed Codex example without making model calls')
     init.add_argument('--dir', type=Path, default=Path('proofloop-codex-demo'))
     init.add_argument('--worker-model', default='gpt-6.1-sol')
@@ -30,6 +35,18 @@ def main(argv=None):
         s.add_argument('--repo', type=Path, default=Path('.'))
     args = p.parse_args(argv)
     try:
+        if args.cmd in {'evolve', 'evolution-demo'}:
+            from .evolution import Evolution
+            if args.cmd == 'evolution-demo':
+                from .evolution_demo import create_evolution_demo
+                args.repo = args.dir.resolve()
+                args.config = create_evolution_demo(args.repo)
+            harness = Evolution(args.repo, args.config)
+            status = harness.run()
+            print(status)
+            print(f'Result: proofloop-evolution/{harness.config["id"]}')
+            print(f'Report: {harness.home / "REPORT.md"}')
+            return 0 if status == 'COMPLETE' else 1
         if args.cmd == 'init-codex':
             from .codex import create_codex_demo
             config = create_codex_demo(args.dir.resolve(), args.worker_model, args.reviewer_model, args.planner_model, parallel=args.parallel, max_parallel=args.max_parallel, resolver_model=args.resolver_model)

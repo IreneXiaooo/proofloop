@@ -1,4 +1,4 @@
-# Validation record — 2026-10-17
+# Validation record — 2026-10-20
 
 Local validation for the v0.1.0 source release, on Linux with Python 3.11. No paid model or remote provider was called.
 
@@ -33,3 +33,11 @@ Mixed-provider coverage: a Codex planner assigns a Codex worker and a generic co
 The expanded local suite passed **86 tests** (50.222 seconds in the recorded full run). Parallel tests run actual subprocesses against temporary Git repositories. A two-process rendezvous proves simultaneous execution in distinct worktrees; a three-worker case verifies a two-worker concurrency cap, unique atomic call IDs, and stable plan-order integration. Coverage includes clean/disjoint and same-file nonoverlapping merges, ordinary text/add-add conflicts, successful and bounded-retry resolution, unresolved markers, failed/bad/out-of-scope resolvers, frozen checks, regression rejection, binary/modify-delete/rename conflict rejection, worker failure and sibling cancellation, worker timeout, keyboard interruption and cleanup, worker/resolver call-budget exhaustion, merge errors, staged-diff review, setup validation, and the offline parallel demo.
 
 The offline demo completes with four harness-issued calls (fixture planner, two generic workers, fixture resolver), combines a deliberate conflict, and leaves the original checkout unchanged. No model/provider is called. The 0.3 wheel builds, and source examples/documentation links validate. Hosted CI is checked after publication. Live Codex/Qwen model performance, cost savings, OS adversarial containment, Windows behavior, and distributed execution remain unvalidated.
+
+## 0.4.0 Evo²-inspired harness evolution validation
+
+On 2026-10-20, the full local suite passed **108 tests in 24.523 seconds**, including 22 new evolution tests. They exercise autonomous/directed proposals, keep/revise/crossover decisions and provenance, matched task/executor/seed requests across repeats, positive credit only with trusted activation evidence, per-task regression rejection, frozen evaluator protection even under broad writable globs, malformed role/evaluator output, missing result files, evaluator mutation, no-op/nonzero/startup failures, Reflector write rejection, unknown donors, bounded root/champion pools, call/evaluator/time limits, interruption cleanup, refusing reused run ids, schema/permission routing for Codex roles, and external result-branch movement. The suite runs actual subprocesses and temporary Git worktrees.
+
+The no-key parser-harness evolution demo runs from an independently installed 0.4 wheel outside the source checkout. It makes three scripted role calls and five evaluator invocations, selects a directed child, preserves the original checkout and records its raw experience. Codex setup prepares a committed configuration without inference. These demonstrate controller behavior, not learned capability. All six hosted Linux/macOS Python 3.11–3.13 jobs passed for v0.3; v0.4 hosted CI is checked after publication.
+
+No live paid model, weight training, EvoTIDE reproduction, held-out generalization, statistical significance, hard provider spend control, or comparative performance gain is claimed. Frozen executor identity is protocol-checked; actual remote version/settings enforcement belongs to the trusted evaluator.

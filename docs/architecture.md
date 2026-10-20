@@ -34,3 +34,7 @@ Git's [worktree interface](https://git-scm.com/docs/git-worktree) supplies linke
 ## Parallel integration (0.3)
 
 `parallel.py` runs isolated worker processes with bounded concurrency, collects checked candidate commits/patches, and integrates them in plan order via Git merge-tree. Optional resolver calls can edit only supported conflicting text files. State/call reservations use an RLock; subprocess execution occurs outside it. A shared cancellation event lets failed/interrupted batches terminate running process groups and cancel queued futures before worktree cleanup. The normal verifier/reviewer/publication pipeline remains the final gate. See the [focused harness design review](harness-review.md).
+
+## Fixed-weight harness evolution (0.4)
+
+`evolution.py` is a separate opt-in controller that reuses the existing process, worktree, lock, path-policy and model-call ledger primitives. A frozen evolver specification serves Proposer and Reflector roles; the trusted evaluator scores a frozen task suite and reports observed mechanism activations. Candidate commits form a persistent archive with parent/donor provenance. Matched parent/child evaluation, per-task non-regression and activation evidence gate champion replacement. Result publication uses a separate local branch and a compare-and-swap lease. Errors/interruption retain root as the result. `evolution_demo.py` provides an offline traced-parser fixture. See [evolution configuration and limits](evolution.md).

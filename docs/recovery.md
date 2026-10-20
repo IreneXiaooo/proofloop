@@ -58,3 +58,7 @@ Git worktrees share object storage and Git administration. Protect the host with
 ## Parallel batches (0.3)
 
 Worker worktrees are named with the attempt and worker number. On ordinary cancellation the controller waits for all child executions before removing them. A forced crash may leave several worktrees; confirm no process is still using them before manual cleanup. `parallel.json`, `worker-N.patch`, and `merges/NN/` preserve the attempted integration and resolution evidence. Resume starts a new attempt from the accepted base, not from a partially merged candidate. See [parallel execution](parallel.md).
+
+## Harness evolution (0.4)
+
+`evolve` uses `proofloop/evolution/<id>/` under the Git common directory and a separate `proofloop-evolution/<id>` result branch. It retains candidate refs and raw role/evaluation evidence. Automatic evolution resume is unsupported: inspect the archive and start a new explicitly budgeted id. Errors/interruption retain root as the result; normal stopping publishes the best eligible candidate locally with a branch lease. See [evolution evidence and recovery](evolution.md#evidence-stopping-and-recovery).

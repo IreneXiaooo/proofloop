@@ -22,3 +22,4 @@ jobs:
       - run: python -m proofloop demo --dir "${{ runner.temp }}/proofloop-demo"
 
       - run: python -m proofloop parallel-demo --dir "${{ runner.temp }}/proofloop-parallel-demo"
+      - run: python -m proofloop evolution-demo --dir "${{ runner.temp }}/proofloop-evolution-demo"
